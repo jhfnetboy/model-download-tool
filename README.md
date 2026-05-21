@@ -1,66 +1,103 @@
 # mdt — Model Download Tool
 
-AI 模型搜索与下载工具。支持模糊搜索、交互式选择、断点续传，自动选择最优下载器。
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/Mac_M--chip-MLX_default-black?logo=apple&logoColor=white)](https://ml-explore.github.io/mlx/)
+[![Mirror](https://img.shields.io/badge/Mirror-hf--mirror.com-green?logo=huggingface&logoColor=white)](https://hf-mirror.com)
+[![Downloader](https://img.shields.io/badge/Downloader-hfd_+_aria2c-orange)](https://hf-mirror.com/hfd/hfd.sh)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-**默认适配 Mac M 芯片**，搜索结果自动过滤为 MLX 格式（Apple Silicon 原生加速）。
+**简单、快速**的 AI 模型搜索与下载一体化工具。
+
+- 集成 **hfd 多线程下载器** + **国内镜像 hf-mirror.com**，国内网络直连、无需代理
+- **搜索即下载**：模糊搜索 → 列表选择 → 一键下载，全程交互
+- **默认适配 Mac M 芯片（MLX 格式）**，搜索结果自动过滤 Apple Silicon 原生模型
+- 修改 `config.json` 一行即可切换为 Windows / Linux / GGUF 等其他平台
+
+---
+
+## 效果预览
+
+**搜索模型**
+
+![搜索截图](docs/screenshot-search.jpg)
+
+**下载进度（aria2c 多线程）**
+
+![下载截图](docs/screenshot-download.jpg)
+
+---
 
 ## 快速开始
 
 ```bash
-# 激活 ML 虚拟环境（推荐）
-source ~/venvs/ml/bin/activate
+# 建议先激活 ML 虚拟环境
+source ~/venvs/ml/bin/activate   # python3.12 -m venv ~/venvs/ml
 
 # 1. 初始化（下载 hfd.sh、检查工具链、生成 config.json）
 python3 mdt.py setup
 
-# 2. 搜索模型（默认 Mac MLX 格式）
-python3 mdt.py search "llama"
-python3 mdt.py search "OCR"
+# 2. 搜索并下载（默认 Mac M-chip MLX）
+mdt search "OCR"
+mdt search "llama"
 
 # 3. 直接下载指定模型
-python3 mdt.py download mlx-community/Qwen3-8B-4bit-mlx
+mdt download mlx-community/Qwen3-8B-4bit-mlx
 
 # 4. 查看已下载模型
-python3 mdt.py list
-
-# 5. 查看/修改配置
-python3 mdt.py config
+mdt list
 ```
 
-## 全局命令（可选）
+> 设置全局 `mdt` 命令，在 `~/.zshrc` 中添加：
+> ```bash
+> source ~/venvs/ml/bin/activate
+> export HF_ENDPOINT=https://hf-mirror.com
+> alias mdt='python3 /path/to/mdt.py'
+> ```
 
-在 `~/.zshrc` 中添加以下内容，让 `mdt` 命令全局可用：
+---
 
-```bash
-source ~/venvs/ml/bin/activate
-export HF_ENDPOINT=https://hf-mirror.com
-alias mdt='python3 /Users/jason/Dev/tools/model-download-tool/mdt.py'
-```
+## 为什么用 mdt？
 
-然后执行 `source ~/.zshrc`。
+| 痛点 | mdt 的解法 |
+|------|-----------|
+| huggingface.co 国内访问慢 | 内置 hf-mirror.com 镜像，开箱即用 |
+| 大模型下载动辄中断 | hfd + aria2c 多线程 + 断点续传 |
+| 不知道下哪个版本 | 搜索结果按下载量排序，格式列清晰标注 |
+| Mac 下载到 PyTorch 版用不了 | 默认过滤 MLX 格式，全是 Apple Silicon 原生模型 |
+| 换平台要改很多参数 | 修改 `config.json` 一行即可，CLI 参数自动跟随 |
 
-## 平台过滤（Mac M 芯片）
+---
 
-通过 `--platform` 指定目标平台，默认为 `mac`：
+## 平台过滤
 
-| 平台 | 过滤格式 | 说明 |
-|------|---------|------|
+通过 `--platform` 切换，或修改 `config.json` 中的 `platform` 字段永久生效：
+
+| 平台值 | 过滤格式 | 适用场景 |
+|--------|---------|---------|
 | `mac` | MLX | Apple Silicon 原生加速（**默认**）|
-| `mac-gguf` | GGUF | llama.cpp + Metal 加速，适合 LLM |
-| `gguf` | GGUF | 跨平台，CPU/GPU 均可运行 |
-| `windows` | 无 | Windows (CUDA / CPU) |
-| `linux` | 无 | Linux (CUDA / CPU) |
+| `mac-gguf` | GGUF | llama.cpp + Metal，适合大语言模型 |
+| `gguf` | GGUF | 跨平台，CPU/GPU 均可 |
+| `windows` | 无 | Windows CUDA / CPU |
+| `linux` | 无 | Linux CUDA / CPU |
 | `all` | 无 | 不过滤，显示全部 |
 
 ```bash
-python3 mdt.py search "llama"                      # 默认：Mac MLX
-python3 mdt.py search "llama" --platform mac-gguf  # GGUF + Metal
-python3 mdt.py search "llama" --platform all       # 全平台不过滤
+mdt search "llama"                       # 默认：Mac MLX
+mdt search "llama" --platform mac-gguf  # GGUF + Metal
+mdt search "llama" --platform all       # 全平台不过滤
+
+# 永久改为全平台：
+mdt config platform all
 ```
+
+> **MLX 说明**：MLX 模型的文件扩展名是 `.safetensors`，这是正常的。
+> mlx-community 发布的模型均为 Apple Silicon 优化版，用 `mlx_lm` 或 `mlx-vlm` 加载即可。
+
+---
 
 ## config.json 配置文件
 
-运行 `setup` 后自动生成 `config.json`，所有默认值可在此修改，无需每次传参。
+`setup` 后自动生成，所有默认值可在此修改，无需每次传命令行参数。
 
 ```json
 {
@@ -75,107 +112,69 @@ python3 mdt.py search "llama" --platform all       # 全平台不过滤
 }
 ```
 
-| 配置项 | 说明 | 可选值 |
-|--------|------|--------|
-| `download_dir` | 模型保存目录 | 任意路径 |
-| `mirror` | HuggingFace 镜像站 | URL |
-| `platform` | 默认平台过滤 | mac / mac-gguf / gguf / windows / linux / all |
-| `source` | 默认搜索来源 | huggingface / modelscope / all |
-| `limit` | 搜索结果条数 | 整数 |
-| `threads` | 单文件下载线程数 | 整数（建议 4-8）|
-| `jobs` | 并行下载文件数 | 整数（建议 3-5）|
-| `token` | HuggingFace Token | hf_xxx（下载受限模型用）|
-
-通过命令行修改单项配置：
+命令行快速修改单项：
 
 ```bash
-python3 mdt.py config platform all     # 改为全平台搜索
-python3 mdt.py config limit 30         # 默认显示 30 条结果
-python3 mdt.py config token hf_xxx     # 设置 HF token
+mdt config platform all        # 切换为全平台
+mdt config limit 30            # 默认显示 30 条
+mdt config token hf_xxxxxxx    # 设置 HF Token（下载受限模型用）
+mdt config                     # 查看所有当前配置
 ```
+
+---
 
 ## 命令参考
 
-### `setup` — 初始化工具链
-
-```bash
-python3 mdt.py setup
+```
+mdt setup                      初始化工具链，生成 config.json
+mdt config [key] [value]       查看或修改配置
+mdt search [关键词]             搜索并交互式下载
+mdt download <模型ID>           直接下载指定模型
+mdt list                       查看已下载模型及占用空间
 ```
 
-自动完成：下载 `hfd.sh`、安装 `huggingface_hub`、检查 `aria2c`、生成 `config.json`。
-
-### `config` — 查看/修改配置
-
-```bash
-python3 mdt.py config                  # 查看所有配置
-python3 mdt.py config platform all    # 修改单项
+### search 选项
+```
+--platform  平台过滤（默认来自 config.json）
+--source    huggingface / modelscope / all
+-n N        显示 N 条结果
+--token     HuggingFace Access Token
 ```
 
-### `search` — 搜索并交互式下载
-
-```bash
-python3 mdt.py search [关键词] [选项]
-
-选项:
-  --platform      平台过滤 (默认来自 config.json)
-  --source        来源: huggingface / modelscope / all
-  -n N            显示 N 条结果
-  --token TOKEN   HuggingFace Access Token
-  --dir PATH      下载目录
+### download 选项
+```
+--token     HuggingFace Access Token（受限模型）
+-x N        单文件线程数（默认 8）
+-j N        并行文件数（默认 5）
+--include   只下载匹配文件，如 'mlx/*'
+--exclude   排除匹配文件，如 '*.bin'
 ```
 
-交互操作：输入序号下载，`s <关键词>` 重新搜索，`q` 退出。
-
-### `download` — 直接下载指定模型
-
-```bash
-python3 mdt.py download <模型ID> [选项]
-
-选项:
-  --source        来源: huggingface / modelscope
-  --token TOKEN   HuggingFace Access Token
-  -x N            单文件线程数 (默认 8)
-  -j N            并行文件数 (默认 5)
-  --include PAT   只下载匹配文件 (如 '*.safetensors')
-  --exclude PAT   排除匹配文件 (如 '*.bin')
-  --dir PATH      下载目录
-```
-
-### `list` — 查看已下载模型
-
-```bash
-python3 mdt.py list
-```
-
-显示 `~/.omlx/models/` 下所有模型及占用空间。
+---
 
 ## 下载器优先级
 
-工具自动选择最优下载器，无需手动配置：
+工具自动检测并使用最优下载器，无需配置：
 
-1. **hfd.sh + aria2c** — 多线程，速度最快（推荐）
-2. **huggingface-cli** — HuggingFace 官方，支持断点续传
+1. **hfd.sh + aria2c**（多线程，最快，推荐）
+2. **huggingface-cli**（断点续传）
 3. 首次 `setup` 时自动下载 `hfd.sh` 并安装 `huggingface_hub`
 
-## 受限模型下载
-
-部分模型（如 Llama 系列）需要 HuggingFace 账号授权：
-
-1. 在 [huggingface.co](https://huggingface.co) 登录并申请模型访问权限
-2. 在 [设置页](https://huggingface.co/settings/tokens) 创建 Access Token
-3. 填入 config.json 的 `token` 字段，或通过 `--token` 参数传入
-
-```bash
-python3 mdt.py download meta-llama/Llama-2-7b --token hf_xxx
-```
-
-## 镜像站
-
-默认使用 [hf-mirror.com](https://hf-mirror.com)，国内直连无需代理。可在 `config.json` 中修改 `mirror` 字段。
+---
 
 ## 依赖
 
-- Python 3.8+（搜索功能仅用标准库，无强制第三方依赖）
-- aria2c（推荐）：`brew install aria2`
-- 可选：`pip install huggingface_hub`（提供 huggingface-cli）
+- **Python 3.8+**（搜索功能仅用标准库）
+- **aria2c**（推荐）：`brew install aria2`
+- 可选：`pip install huggingface_hub`
 - 推荐虚拟环境：`python3.12 -m venv ~/venvs/ml`
+
+---
+
+## 受限模型
+
+部分模型（Llama 等）需 HuggingFace 授权：
+
+1. 在 [huggingface.co](https://huggingface.co) 申请模型访问权限
+2. 在 [设置页](https://huggingface.co/settings/tokens) 创建 Read Token
+3. 填入 `config.json` 的 `token` 字段，或用 `--token hf_xxx` 临时传入
