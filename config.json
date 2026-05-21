@@ -1,0 +1,10 @@
+{
+  "download_dir": "~/.omlx/models",
+  "mirror": "https://hf-mirror.com",
+  "platform": "mac",
+  "source": "huggingface",
+  "limit": 20,
+  "threads": 8,
+  "jobs": 5,
+  "token": ""
+}
