@@ -1,0 +1,8 @@
+# 核心依赖 (仅使用 Python 标准库，无强制依赖)
+# 以下为可选增强依赖：
+
+# huggingface_hub — 提供 huggingface-cli 命令行工具
+huggingface_hub>=0.23.0
+
+# modelscope — ModelScope 来源下载支持 (可选)
+# modelscope
