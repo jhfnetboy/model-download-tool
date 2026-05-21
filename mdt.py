@@ -50,7 +50,8 @@ PLATFORM_LABELS: Dict[str, str] = {
     "all":      "全平台",
 }
 
-FORMAT_TAGS = {"mlx", "gguf", "coreml", "onnx", "safetensors", "ggml"}
+# Priority order: platform-specific formats first, safetensors is fallback only
+PRIORITY_FORMATS = ["mlx", "gguf", "ggml", "coreml", "onnx"]
 
 
 def load_config() -> Dict:
@@ -91,8 +92,12 @@ def _http_get(url: str, timeout: int = 15) -> Optional[dict]:
 
 
 def _extract_format(tags: List[str]) -> str:
-    found = [t for t in tags if t.lower() in FORMAT_TAGS]
-    return ",".join(found[:2]) if found else "-"
+    lower = [t.lower() for t in tags]
+    # Show platform-specific formats first (mlx/gguf/etc); safetensors only as fallback
+    found = [f for f in PRIORITY_FORMATS if f in lower]
+    if found:
+        return "/".join(found[:2])
+    return "safetensors" if "safetensors" in lower else "-"
 
 
 def search_huggingface(query: str, limit: int = 20, platform: str = "all") -> List[Dict]:
@@ -169,16 +174,19 @@ def display_models(models: List[Dict], platform: str = "all") -> None:
     src_tag = {"huggingface": "\033[33mHF\033[0m", "modelscope": "\033[36mMS\033[0m"}
     label = PLATFORM_LABELS.get(platform, platform)
     print(f"\n  平台过滤: {label}\n")
-    print(f"{'#':>3}  {'来源':>2}  {'模型 ID':<46} {'下载':>7}  {'♥':>5}  {'格式':<14}  {'任务'}")
-    print("─" * 100)
+    # Column widths (visible chars): seq=4 src=2 mid=44 dl=7 lk=6 fmt=14 task=rest
+    hdr = (f"{'序号':>4}  {'来':>2}  {'模型 ID':<44} {'下载量':>7}  {'点赞':>6}  "
+           f"{'格式(mlx/gguf…)':<14}  {'任务类型'}")
+    print(hdr)
+    print("─" * 108)
     for i, m in enumerate(models, 1):
-        src = src_tag.get(m["source"], m["source"])
-        mid = m["id"][:45]
-        dl  = _fmt_num(m["downloads"])
-        lk  = _fmt_num(m["likes"])
-        fmt = m.get("format", "-")[:13]
-        task = m["task"][:18]
-        print(f"{i:>3}  {src}  {mid:<46} {dl:>7}  {lk:>5}  {fmt:<14}  {task}")
+        src  = src_tag.get(m["source"], m["source"])
+        mid  = m["id"][:43]
+        dl   = _fmt_num(m["downloads"])
+        lk   = _fmt_num(m["likes"])
+        fmt  = m.get("format", "-")          # no truncation — logic now returns short strings
+        task = m["task"][:20]
+        print(f"{i:>4}  {src}  {mid:<44} {dl:>7}  {lk:>6}  {fmt:<14}  {task}")
     print()
 
 
