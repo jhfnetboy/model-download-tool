@@ -11,7 +11,8 @@ import argparse
 import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
-from urllib.request import urlopen, urlretrieve, Request
+import urllib.request as _urlrequest
+from urllib.request import urlretrieve, Request
 from urllib.parse import urlencode
 from urllib.error import URLError, HTTPError
 
@@ -81,10 +82,18 @@ HFD_URL = "https://hf-mirror.com/hfd/hfd.sh"
 
 # ─── search ──────────────────────────────────────────────────────────────────
 
+class _RedirectHandler(_urlrequest.HTTPRedirectHandler):
+    """Follow HTTP 308 Permanent Redirect (Python < 3.11 omits it)."""
+    def http_error_308(self, req, fp, code, msg, headers):
+        return self.http_error_302(req, fp, code, msg, headers)
+
+_OPENER = _urlrequest.build_opener(_RedirectHandler())
+
+
 def _http_get(url: str, timeout: int = 15) -> Optional[dict]:
     try:
         req = Request(url, headers={"User-Agent": "mdt/1.0"})
-        with urlopen(req, timeout=timeout) as r:
+        with _OPENER.open(req, timeout=timeout) as r:
             return json.loads(r.read())
     except (URLError, HTTPError, json.JSONDecodeError) as e:
         print(f"  请求失败: {e}")
@@ -158,6 +167,27 @@ def search_models(query: str, limit: int = 20, source: str = "huggingface",
         ms = search_modelscope(query, limit // 2 + 1)
         return hf + ms
     return search_huggingface(query, limit, platform)
+
+
+# ─── model size ──────────────────────────────────────────────────────────────
+
+def fetch_model_size(model_id: str) -> Optional[int]:
+    """Return total repo size in bytes via HF API usedStorage field."""
+    # hf-mirror.com redirects /api/models/{id} to huggingface.co; call official API directly
+    data = _http_get(f"{HF_API}/api/models/{model_id}")
+    if not data:
+        return None
+    return data.get("usedStorage") or None
+
+
+def _fmt_size(n: Optional[int]) -> str:
+    if not n:
+        return "未知"
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if n < 1024:
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} TB"
 
 
 # ─── display ─────────────────────────────────────────────────────────────────
@@ -380,7 +410,18 @@ def interactive_search(
 
             print(f"\n  模型: {mid}")
             print(f"  格式: {m.get('format', '-')}  |  任务: {m['task']}")
-            print(f"  下载: {m['downloads']:,}  ♥ {m['likes']:,}")
+            print(f"  下载量: {m['downloads']:,}  ♥ {m['likes']:,}")
+
+            # Fetch size before asking user to confirm
+            if src == "huggingface":
+                print("  正在获取模型大小...", end="\r")
+                size = fetch_model_size(mid)
+                size_str = _fmt_size(size)
+                print(f"  大小: {size_str}            ")  # spaces overwrite the "获取中" line
+            else:
+                size_str = "未知（ModelScope）"
+                print(f"  大小: {size_str}")
+
             try:
                 confirm = input(f"\n  确认下载到 {dest}? [y/N] ").strip().lower()
             except (KeyboardInterrupt, EOFError):
