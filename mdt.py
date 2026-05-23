@@ -308,15 +308,19 @@ def download_model(
     if source == "modelscope":
         return _download_modelscope(model_id, local_dir)
 
+    # Always exclude macOS metadata files — they 403 on mirrors and are useless for models
+    DEFAULT_EXCLUDE = [".DS_Store", "__MACOSX"]
+    effective_exclude = " ".join(DEFAULT_EXCLUDE + ([exclude] if exclude else []))
+
     if dl == "hfd":
         hfd = str(_hfd_path())
         cmd = [hfd, model_id,
                "--tool", "aria2c" if _cmd_exists("aria2c") else "wget",
                "-x", str(threads), "-j", str(jobs),
-               "--local-dir", str(local_dir)]
+               "--local-dir", str(local_dir),
+               "--exclude", effective_exclude]
         if token:   cmd += ["--hf_token", token]
         if include: cmd += ["--include", include]
-        if exclude: cmd += ["--exclude", exclude]
 
     elif dl in ("huggingface-cli", "hf"):
         cmd = [dl, "download", "--resume-download",
