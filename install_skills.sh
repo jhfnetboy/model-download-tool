@@ -23,7 +23,7 @@ for skill_dir in "$SKILLS_SRC"/*/; do
         echo "✓ 安装: $skill_name"
     fi
 
-    cp -r "$skill_dir" "$SKILLS_DST/"
+    cp -r "${skill_dir%/}" "$SKILLS_DST/"
 done
 
 echo ""
