@@ -90,13 +90,14 @@ class _RedirectHandler(_urlrequest.HTTPRedirectHandler):
 _OPENER = _urlrequest.build_opener(_RedirectHandler())
 
 
-def _http_get(url: str, timeout: int = 15) -> Optional[dict]:
+def _http_get(url: str, timeout: int = 20, silent: bool = False) -> Optional[dict]:
     try:
         req = Request(url, headers={"User-Agent": "mdt/1.0"})
         with _OPENER.open(req, timeout=timeout) as r:
             return json.loads(r.read())
     except (URLError, HTTPError, json.JSONDecodeError) as e:
-        print(f"  请求失败: {e}")
+        if not silent:
+            print(f"  请求失败: {e}")
         return None
 
 
@@ -114,7 +115,10 @@ def search_huggingface(query: str, limit: int = 20, platform: str = "all") -> Li
     params: Dict = {"search": query, "limit": limit, "sort": "downloads", "direction": -1}
     if hf_filter:
         params["filter"] = hf_filter
-    data = _http_get(f"{HF_API}/api/models?{urlencode(params)}")
+    query_str = urlencode(params)
+    # Try mirror first (faster in China), fall back to official API
+    data = (_http_get(f"{HF_MIRROR}/api/models?{query_str}", silent=True)
+            or _http_get(f"{HF_API}/api/models?{query_str}"))
     if not data:
         return []
     results = []
