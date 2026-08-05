@@ -178,3 +178,17 @@ mdt list                       查看已下载模型及占用空间
 1. 在 [huggingface.co](https://huggingface.co) 申请模型访问权限
 2. 在 [设置页](https://huggingface.co/settings/tokens) 创建 Read Token
 3. 填入 `config.json` 的 `token` 字段，或用 `--token hf_xxx` 临时传入
+
+## 已知限制：xet 存储的仓库不能走镜像
+
+HuggingFace 新的 xet 存储会把下载 302 到签名 CDN URL，签名里绑死了 byte-range，
+aria2 的多连接分片会全部返回 403。表现是走 `--mirror` 时报大量
+`errorCode=22 ... status=403`，URL 里带 `xet-bridge`。
+
+这类仓库改用 huggingface_hub 自带的 xet 客户端直连：
+
+```bash
+hf download <repo_id> --local-dir ~/.omlx/models/<name>
+```
+
+踩到这个坑的实例见 [docs/mage-vl-experiment.md](docs/mage-vl-experiment.md)。
