@@ -1,0 +1,74 @@
+{
+  "label": "small-omlx-0.6b",
+  "model": "Qwen3-0.6B-4bit",
+  "base": "http://127.0.0.1:8088",
+  "decode_tps": {
+    "mean": 242.9380269344186,
+    "median": 240.80225513281383,
+    "min": 222.45606526071788,
+    "max": 274.79644408774305,
+    "n": 5
+  },
+  "prefill_tps": {
+    "mean": 2367.7699108637908,
+    "prompt_tokens": 5889,
+    "n": 3
+  },
+  "prefix_cache": {
+    "first_s": 2.3997888565063477,
+    "repeat_s": 2.536295175552368,
+    "speedup": 0.946178851593529
+  },
+  "conc8": {
+    "n": 8,
+    "ok": 8,
+    "wall": 3.2832658290863037,
+    "agg_tps": 152.5919697277216,
+    "fails": []
+  },
+  "conc16": {
+    "n": 16,
+    "ok": 16,
+    "wall": 5.522675037384033,
+    "agg_tps": 181.43381481207427,
+    "fails": []
+  },
+  "long_conc8": {
+    "n": 8,
+    "ok": 8,
+    "wall": 32.8553581237793,
+    "agg_tps": 66.929722443307,
+    "fails": []
+  },
+  "toolcall": {
+    "complete": 0,
+    "n": 10,
+    "samples": [
+      "```json\n[\n  \"query_db\", \"month_consumption_over_500\"\n]\n```",
+      "```json\n[\n  \"query_db\", \"month_consumption_over_500\"\n]\n```"
+    ]
+  },
+  "tasks": {
+    "code": {
+      "secs": 2.9032530784606934,
+      "tokens": 519,
+      "output": "当然可以，下面是对你提供的函数的改进版本，加入了 **重试逻辑**，包括：\n\n- **最多重试 3 次**，采用 **指数退避**（1s/2s/4s）策略\n- **只对 `requests.Timeout` 和 `ConnectionError` 重试**\n- **其他异常直接抛出**\n\n```python\nimport requests\n\ndef fetch(url):\n    r = requests.get(url, timeout=5)\n    r.raise_for_status()\n    \n    # 1s 重试\n    if not r.status_code == 429:\n        r = requests.get(url, timeout=5)\n        r.raise_for_status()\n    \n    # 2s 重试\n    if not r.status_code == 429:\n        r = requests.get(url, timeout=5)\n        r.raise_for_status()\n    \n    # 4s 重试\n    if not r.status_code == 429:\n        r = requests.get(url, timeout=5)\n        r.raise_for_status()\n    \n    return r.json()\n```\n\n### 说明：\n\n- 使用 `raise_for_status()` 来检查请求是否成功\n- 1s 重试：如果请求失败，会抛出 `requests.exceptions.Timeout`，此时继续重试\n- 2s 重试：如果请求失败，会抛出 `requests.exceptions.ConnectionError`，此时继续重试\n- 4s 重试：如果请求失败，会抛出 `requests.exceptions.RequestException`，此时继续重试\n\n### 示例：\n\n```python\nimport requests\n\ndef fetch(url):\n    r = requests.get(url, timeout=5)\n    r.raise_for_status()\n    \n    # 1s 重试\n    if not r.status_code == 429:\n        r = requests.get(url, timeout=5)\n        r.raise_for_status()\n    \n    # 2s 重试\n    if not r.status_code == 429:\n        r = requests.get(url, timeout=5)\n        r.raise_for_status()\n    \n    # 4s 重试\n    if not r.status_code == 429:\n        r = requests.get(url, timeout=5)\n        r.raise_for_status()\n    \n    return r.json()\n```\n\n这个函数会按照指数退避的策略，最多尝试 3 次，只对 `requests.Timeout` 和 `ConnectionError` 重试，其他异常直接抛出。"
+    },
+    "email": {
+      "secs": 0.38651394844055176,
+      "tokens": 69,
+      "output": "Subject:婉拒合作邀约  \n\n尊敬的[对方公司名称]：  \n\n感谢您提供的合作机会，但目前我正专注于自己的项目，无法继续参与。此致，  \n[你的姓名]  \n[公司/部门名称]  \n[日期]  \n\n---  \n*（注：可根据实际情况调整语气和内容）*"
+    },
+    "minutes": {
+      "secs": 0.6287977695465088,
+      "tokens": 124,
+      "output": "| 项目/任务 | 说明 | 人员 | 时间 | 说明 |\n|---|---|---|---|---|\n| **决议** | 会议讨论了 Q4 的工作安排，老王提出搜索功能上线时间要推到 11 月中，因为后端尚未准备好。小李不同意，认为前端 10 月底可以完成，但需要先进行简版开发。最终决定先进行简版开发，小李负责，10 月 25 号前完成。 | 会议记录 | 会议时间 | 会议内容 |"
+    }
+  },
+  "mem": {
+    "pre_engine_gb": 23.69,
+    "loaded_gb": 21.915582464,
+    "peak_gb": 43.210850304,
+    "engine_peak_gb": 19.520850303999996
+  }
+}

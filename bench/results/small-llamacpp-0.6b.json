@@ -1,0 +1,74 @@
+{
+  "label": "small-llamacpp-0.6b",
+  "model": "qwen",
+  "base": "http://127.0.0.1:8095",
+  "decode_tps": {
+    "mean": 121.46585641684338,
+    "median": 110.12579135874793,
+    "min": 86.74837015904784,
+    "max": 187.10785967911812,
+    "n": 5
+  },
+  "prefill_tps": {
+    "mean": 1864.150542903469,
+    "prompt_tokens": 5889,
+    "n": 3
+  },
+  "prefix_cache": {
+    "first_s": 3.5608742237091064,
+    "repeat_s": 0.4060800075531006,
+    "speedup": 8.768898141934438
+  },
+  "conc8": {
+    "n": 8,
+    "ok": 8,
+    "wall": 3.9785690307617188,
+    "agg_tps": 117.88157912399157,
+    "fails": []
+  },
+  "conc16": {
+    "n": 16,
+    "ok": 16,
+    "wall": 2.702014923095703,
+    "agg_tps": 281.2715775563766,
+    "fails": []
+  },
+  "long_conc8": {
+    "n": 8,
+    "ok": 8,
+    "wall": 33.42961311340332,
+    "agg_tps": 71.79263462782166,
+    "fails": []
+  },
+  "toolcall": {
+    "complete": 10,
+    "n": 10,
+    "samples": [
+      "```json\n[\n  {\"tool\": \"query_db\", \"sql\": \"SELECT * FROM consumption WHERE amount > 500\"},\n  {\"tool\": \"send_email\", \"to\": \"jason@idoris.ai\", \"subject\": \"本月消费记录汇总\", \"body\": \"请查看以下记录：\"}\n]\n```",
+      "```json\n[\n  {\n    \"tool\": \"query_db\",\n    \"sql\": \"SELECT * FROM consumption WHERE amount > 500\"\n  },\n  {\n    \"tool\": \"send_email\",\n    \"to\": \"jason@idoris.ai\",\n    \"subject\": \"月消费记录汇总\",\n    \"body\": \"以下是本月消费超过500元的记录：\"\n  }\n]\n```"
+    ]
+  },
+  "tasks": {
+    "code": {
+      "secs": 1.617861270904541,
+      "tokens": 279,
+      "output": "当然可以！以下是对你提供的 `fetch` 函数的完整改写，加入了重试逻辑：\n\n```python\nimport requests\n\ndef fetch(url):\n    max_retries = 3\n    retry_interval = 1  # 1 second for each retry\n    retry_count = 0\n\n    while retry_count < max_retries:\n        try:\n            response = requests.get(url, timeout=5)\n            response.raise_for_status()\n            return response.json()\n        except requests.exceptions.Timeout:\n            retry_count += 1\n            print(f\"Timeout occurred after {retry_count} retries\")\n            continue\n        except requests.exceptions.ConnectionError:\n            retry_count += 1\n            print(f\"Connection error occurred after {retry_count} retries\")\n            continue\n        except Exception as e:\n            print(f\"An error occurred: {e}\")\n            retry_count += 1\n            continue\n\n    return None\n```\n\n### 使用示例：\n```python\nurl = \"https://example.com/api/data\"\nresult = fetch(url)\nif result:\n    print(result)\nelse:\n    print(\"Failed to fetch data.\")\n```\n\n这个函数在最多 3 次重试后，如果仍然没有成功，会抛出异常。重试间隔是 1 秒，指数退避策略（1s, 2s, 4s）。"
+    },
+    "email": {
+      "secs": 0.47960877418518066,
+      "tokens": 65,
+      "output": "主题：婉拒合作邀约  \n\n尊敬的[对方公司名称]：  \n\n感谢您对我们合作的邀请。目前我正专注于自己的项目，无法兼顾技术顾问职责与当前工作。如有其他合作机会，欢迎随时联系。  \n\n此致  \n敬礼  \n\n[你的姓名]  \n[日期]"
+    },
+    "minutes": {
+      "secs": 1.2137091159820557,
+      "tokens": 179,
+      "output": "**会议记录整理**\n\n**决议：**\n\n1. **Q4 事项决议**  \n   - 老王提出：搜索功能上线时间将推迟至 11 月中，因后端尚未准备好。  \n   - 小李提出：前端功能可在 10 月底上线，建议先推出简版。  \n   - 最终决定：**先推出简版，由小李负责，10 月 25 日前完成**。\n\n**待办（含责任人）：**\n\n- 小李：负责简版功能开发，10 月 25 日前完成上线。  \n- 预算事项待定，待财务确认后执行。\n\n**待确认：**\n\n- 张姐：需招一名前端，该人将在本月内入职并完成 JD（项目交付）工作。"
+    }
+  },
+  "mem": {
+    "pre_engine_gb": 22.27,
+    "loaded_gb": 31.053873152,
+    "peak_gb": 62.841274368,
+    "engine_peak_gb": 40.571274368000005
+  }
+}

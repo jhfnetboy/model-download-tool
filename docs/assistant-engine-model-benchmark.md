@@ -3,10 +3,50 @@
 机器：MacBook Pro，Apple M1 Max，64 GB 统一内存。全部数据本机实测。
 
 > **结论先行**
-> - **引擎：继续用 oMLX**（8088），长上下文场景用 `mlx_vlm server` 兜底。**不要切 vllm-metal**。
+> - **引擎：Mac 继续用 oMLX**（8088），长上下文场景用 `mlx_vlm server` 兜底。llama.cpp / vllm-metal / Ollama **尚未在 35B 上实测，不作结论**（llama.cpp 对照测试进行中，见第八节）。
 > - **模型：MoE `Qwen3.6-35B-A3B-8bit` 当默认主力**，`Qwen3.8-27B-OptiQ-4bit` 当硬任务备胎。
 > - **必须全局关闭 thinking** —— 这比选哪个模型影响更大。
 > - **MTP 投机解码在本机无效**，别浪费时间。
+
+---
+
+## 零、测试条件、评估标准与限制
+
+### 测试条件
+
+| 项 | 值 |
+|---|---|
+| 机器 | MacBook Pro，Apple M1 Max（8P+2E），64 GB 统一内存，macOS（Darwin 25.4） |
+| Metal 建议工作集上限 | 55.6 GB（llama.cpp 启动时报告） |
+| Python 环境 | `~/venvs/ml`：mlx 0.32.1 / mlx-lm 0.31.3 / mlx-vlm 0.6.15 |
+| oMLX | 0.6.4（内置 mlx 0.32.0 / mlx_vlm 0.6.3），`max_concurrent_requests=8` |
+| llama.cpp | 0.5.0（build 11146，Homebrew），`llama-server -ngl 99 -c 65536 -np 8 --jinja` |
+| 日期 | 2026-09-27 |
+
+### 评估标准
+
+| 维度 | 测法 | 判定 |
+|---|---|---|
+| 单流生成速度 | 让模型从 1 数到 500，`max_tokens=400`（保证写满），5 次取平均 | 越高越好 |
+| prefill 速度 | 5.8K token 长 prompt，`max_tokens=1`，**每次加唯一前缀防缓存**，3 次平均 | 越高越好 |
+| 前缀缓存 | 同一长 prompt 发两次，比较两次首 token 用时 | 倍数越高越好 |
+| 并发可靠性 | 短 prompt 并发 8 / 16；5.8K 长 prompt 并发 8 | **必须 100% 完成** |
+| 工具调用正确性 | 关 thinking，temp 0.2，同一任务重复 10 次，输出同时包含 query_db、send_email 和正确邮箱才算完整 | 完整次数 / 10 |
+| 办公任务质量 | 代码改写 / 婉拒邮件 / 会议纪要各一份，保留原文人工比对 | 人工判断 |
+| 内存 | `footprint -p <引擎进程>`（含 Metal 显存），测试全程 2 秒采样取峰值 | 越低越好 |
+
+所有请求都走 OpenAI 兼容接口，两个引擎用**同一个客户端脚本**（`bench/h2h.py`）。
+
+**Mac 是否切到 llama.cpp 的参考线**（测试前定好）：llama.cpp 单流生成 ≥ oMLX 的 90%，且并发与长 prompt 全部完成。最终由 jason 看数据决定。
+
+### 限制条件
+
+- **只有一台机器**（M1 Max 64GB），结论不能外推到其他芯片或内存规格
+- **Windows 完全没测**，本文不含任何 Windows 结论
+- 质量类测试样本少：工具调用 10 次，办公任务各 1 次
+- 两个引擎的模型格式不同（MLX 量化 vs GGUF 量化），chat template 与采样默认值（top_k / min_p）也不同，**测到的是「引擎+其格式」的整体表现**，不是纯引擎差异
+- 两个引擎轮流独占机器，没有交替重复，可能受发热影响
+- 第四、五节的早期数据用 `mlx_lm generate` 测得，与第八节的 HTTP 客户端测法不同，两者数字不能直接比
 
 ---
 
@@ -56,21 +96,20 @@ mlx-0.32.0   mlx_metal-0.32.0   mlx_lm-0.31.3   mlx_vlm-0.6.3
 | 长 prompt(5.8K) 并发 8 | 13.9 tok/s（172.5s） | **28.5 tok/s（84.3s）** | **mlx_vlm 快 2 倍** |
 | 完成率（全部场景） | 100% | 100% | 平 |
 
-**oMLX 长 prompt 弱的原因不是 chunked_prefill。** 试过把 `scheduler.chunked_prefill` 从 false 改成 true：长 prompt 并发 8 变成 187.6s（比原来 172.5s 还略差），短 prompt 91.3 tok/s（+4%，在噪声内）。已恢复原设置。真实原因应该是 SiliconBench Table 1 记的 oMLX 设计：**prompt batching = "One prompt"**，prefill 一次只处理一个请求。
+**oMLX 长 prompt 弱的原因不是 chunked_prefill。** 试过把 `scheduler.chunked_prefill` 从 false 改成 true：长 prompt 并发 8 变成 187.6s（比原来 172.5s 还略差），短 prompt 91.3 tok/s（+4%，在噪声内）。已恢复原设置。真实原因**未查明**。有论文提到 oMLX 的 prefill 一次只处理一个请求，本机未验证。
 
-### 为什么不切 vllm-metal
+### 未实测的引擎（不作结论）
 
-SiliconBench 里 `vllm-metal` 并发扩展性最好（c=16 时 456 tok/s，是单流的 4.5 倍），三项审计门槛也全过。但有一条否决性理由：
-
-> **MoE 是 vllm-metal 最不成熟的部分** —— 社区报告称 MLX 后端上的 **MoE 专家路由正确性仍是开放问题**，GGUF 格式的 MoE 模型直接被拒绝。
-
-我们的主脑正是 MoE。切过去等于把核心押在它最弱的地方。项目本身是健康的（[vllm-project/vllm-metal](https://github.com/vllm-project/vllm-metal) 1782 star，当天有提交，仅 23 个 open issue，`brew tap vllm-project/vllm-metal` 可装），**等 MoE 路由验证成熟再评估**。
+| 引擎 | 状态 |
+|---|---|
+| llama.cpp `llama-server` | 35B 对照测试进行中（第八节）；0.6B 已测 |
+| vllm-metal | 未测。文献称并发扩展性好、MoE 支持不成熟，均未经本机验证 |
+| Ollama | 未测。文献称 0.19+ 在 Apple Silicon 走 MLX，也有文献称其工具调用存在问题，均未经本机验证 |
 
 ### 引擎建议
 
 **主力 oMLX**，理由：
 - 已装好、已在跑、已指向 `~/.omlx/models`，零迁移成本
-- SiliconBench 三项门槛（速度/内存/保真度）全过，只有 3 个引擎做到
 - 内存策略「有界增长」，而 `mlx_lm` 是「无界」
 - 同时暴露所有模型为独立 API model ID，**切换不重启、不额外占内存** —— 正好满足多档位切换需求
 - 短 prompt 并发比 mlx_vlm 略好
@@ -119,7 +158,7 @@ SiliconBench 里 `vllm-metal` 并发扩展性最好（c=16 时 456 tok/s，是�
 | Qwen3.8-27B-OptiQ-4bit | dense 3.8 | 19 GB | 10.0–11.4 tok/s | 20.0 GB |
 | Qwen3.6-27B-6bit | dense 3.6 | 21 GB | 5.8–8.2 tok/s | 22.3 GB |
 
-**MoE 比新代 dense 快 5 倍，比同代 dense 快 7–9 倍。** 比文献的 3–5 倍更夸张。
+**MoE 比新代 dense 快 5 倍，比同代 dense 快 7–9 倍。**
 
 两个意外：
 
@@ -176,7 +215,7 @@ OptiQ 的坑：**视觉塔在 sidecar 里，stock `mlx-lm` 只能跑纯文本**�
 |---|---|---|
 | **默认** | oMLX 0.6.4 | 8088 |
 | 长上下文（>4K prompt） | mlx_vlm server | 8090 |
-| 暂不考虑 | vllm-metal（MoE 路由未验证）、llama.cpp（无 MLX 加速） | — |
+| 待实测 | llama.cpp（35B 对照进行中）、vllm-metal、Ollama（均未测） | — |
 
 ### 模型分层
 
@@ -220,5 +259,33 @@ oMLX 把 `~/.omlx/models` 下所有模型**同时**暴露为独立 API model ID�
 - [ ] **oMLX SSD prefix cache**（`cache.enabled=false` → true）对助理场景的收益 —— 系统提示词固定 + 历史反复读，理论收益大
 - [ ] MoE 在 `mlx_vlm` 上跑长上下文并发的**内存上限**（本次 c=8 时系统空闲内存降到 31%）
 - [ ] 质量对比只做了单样本，`dense-3.8 漏工具调用` 需要更多样本确认是稳定缺陷还是偶发
-- [ ] vllm-metal 的 MoE 专家路由何时验证成熟，届时重新评估（它的并发扩展性是三个引擎里最好的）
+- [ ] vllm-metal、Ollama 尚未实测，需要时再测
+- [ ] **Windows 平台完全未测** —— 本机是 Mac，任何 Windows 引擎结论都需要在 Windows 机器上实测
 - [ ] Qwen3.8-27B 若出 **bf16 MTP 头**，MTP 值得重测（接受率 79–85% vs 现在 5–11%）
+
+---
+
+## 八、引擎对照：同一模型、同一客户端
+
+脚本：`bench/run.sh`（编排）、`bench/h2h.py`（客户端）、`bench/compare.py`（出表）。原始结果在 `bench/results/`。
+
+### Qwen3-0.6B（MLX 4bit vs GGUF Q4_K_M）—— 已测
+
+| | oMLX | llama-server |
+|---|---|---|
+| 单流生成 | **242.9 tok/s** | 121.5 tok/s（87–187，波动大） |
+| prefill（5.9K，冷启动） | **2368** | 1864 |
+| 前缀缓存 | 无（0.9×） | **8.8×** |
+| 短 prompt 并发 8 | **152.6** | 117.9 |
+| 短 prompt 并发 16 | 181.4 | **281.3** |
+| 长 prompt 并发 8 | 66.9 | 71.8 |
+| 工具调用完整 | 0/10 | **10/10** |
+
+注意：
+- 0.6B 不是我们的目标模型，这组数据只用来验证测试脚本，**不能推到 35B**
+- 工具调用差距已核实：oMLX 确实关闭了 thinking，是模型在 oMLX 上直接答错（只输出 query_db）。原因可能是量化方式或 chat template 不同，未查明
+- 这组的内存数据用的是早期的整机测法，不可信，已弃用
+
+### Qwen3.6-35B-A3B（MLX 8bit vs GGUF Q8_0）—— 进行中
+
+GGUF 下载完成后由 `bench/run.sh` 自动执行，结果回填本节。
