@@ -1,0 +1,73 @@
+{
+  "label": "omlx-mlx8bit",
+  "model": "Qwen3.6-35B-A3B-MLX-8bit",
+  "base": "http://127.0.0.1:8088",
+  "decode_tps": {
+    "mean": 39.54730040072818,
+    "median": 40.30219071307463,
+    "min": 33.21660714733305,
+    "max": 44.957104796510556,
+    "n": 5
+  },
+  "prefill_tps": {
+    "mean": 510.85478055632404,
+    "prompt_tokens": 5799,
+    "n": 3
+  },
+  "prefix_cache": {
+    "first_s": 12.024974822998047,
+    "repeat_s": 12.538832902908325,
+    "speedup": 0.9590186675355494
+  },
+  "conc8": {
+    "n": 8,
+    "ok": 8,
+    "wall": 12.85878586769104,
+    "agg_tps": 33.59570681439236,
+    "fails": []
+  },
+  "conc16": {
+    "n": 16,
+    "ok": 16,
+    "wall": 35.400338888168335,
+    "agg_tps": 24.434794331562298,
+    "fails": []
+  },
+  "long_conc8": {
+    "n": 8,
+    "ok": 8,
+    "wall": 232.90500211715698,
+    "agg_tps": 10.304630549724049,
+    "fails": []
+  },
+  "toolcall": {
+    "complete": 10,
+    "n": 10,
+    "samples": [
+      "[\n  {\n    \"tool\": \"query_db\",\n    \"args\": {\n      \"sql\": \"SELECT * FROM transactions WHERE amount > 500 AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')\"\n    }\n  },\n  {\n    \"tool\": \"send_email\",\n    \"args\": {\n      \"to\": \"jason@idoris.ai\",\n      \"subject\": \"本月消费超过 500 元记录汇总\",\n      \"body\": \"以下是您本月消费超过 500 元的记录：\\n\\n[此处插入查询结果生成的表格]\"\n    }\n  }\n]",
+      "[\n  {\n    \"tool\": \"query_db\",\n    \"parameters\": {\n      \"sql\": \"SELECT * FROM expenses WHERE amount > 500 AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')\"\n    }\n  },\n  {\n    \"tool\": \"send_email\",\n    \"parameters\": {\n      \"to\": \"jason@idoris.ai\",\n      \"subject\": \"本月消费超过 500 元记录汇总\",\n      \"body\": \"您好，以下是您本月消费超过 500 元的记录：\\n\\n[此处插入查询结果表格]\"\n    }\n  }\n]"
+    ]
+  },
+  "tasks": {
+    "code": {
+      "secs": 2.921105146408081,
+      "tokens": 132,
+      "output": "```python\nimport requests\nimport time\n\n\ndef fetch(url):\n    max_retries = 3\n    for attempt in range(max_retries + 1):\n        try:\n            r = requests.get(url, timeout=5)\n            r.raise_for_status()\n            return r.json()\n        except (requests.Timeout, requests.ConnectionError) as e:\n            if attempt < max_retries:\n                wait_time = 2 ** attempt  # 1s, 2s, 4s\n                time.sleep(wait_time)\n            else:\n                raise\n        except Exception:\n            raise\n```"
+    },
+    "email": {
+      "secs": 3.1440460681915283,
+      "tokens": 82,
+      "output": "主题：关于合作邀约的回复\n\n[对方姓名] 你好，\n\n感谢贵司的邀请，AI 硬件领域的前景令人振奋。\n\n鉴于我目前正全力投入自有项目的研发，精力已饱和，暂时无法以技术顾问身份参与合作，深表歉意。\n\n希望未来在我项目稳定后，能有机会与贵司交流探讨。祝业务蒸蒸日上！\n\n[你的名字]"
+    },
+    "minutes": {
+      "secs": 3.9487509727478027,
+      "tokens": 160,
+      "output": "# Q4 项目进展会议纪要\n\n## 决议\n- **搜索功能上线策略调整**：决定优先上线搜索功能的“简版”，而非等待后端完全准备好后上线完整版。\n- **招聘计划**：确认本月内启动前端工程师的招聘工作。\n\n## 待办 (含责任人)\n| 任务内容 | 责任人 | 截止时间 |\n| :--- | :--- | :--- |\n| 完成搜索功能简版的开发与上线 | 小李 | 10 月 25 日前 |\n| 输出前端工程师岗位 JD (Job Description) | 张姐 | 本月内 |\n\n## 待确认\n- **预算审批**：最终预算金额尚未确定，需等待财务部门提供具体数据。"
+    }
+  },
+  "mem": {
+    "method": "footprint -p (进程级，含 Metal)",
+    "loaded_gb": 37.0,
+    "engine_peak_gb": 42.0
+  }
+}
